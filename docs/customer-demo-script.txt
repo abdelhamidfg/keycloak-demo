@@ -1,0 +1,49 @@
+CUSTOMER DEMO SCRIPT
+Commerce application with Keycloak and Quarkus on OpenShift
+
+Live walkthrough: approximately 6–8 minutes.
+Application: https://frontend-keycloak-demo.apps.cluster.example.com/
+
+Before presenting
+Have Alice and Bob’s demo logins ready. Confirm sample orders O100 and O200 exist. Keep passwords and raw tokens off the shared screen. For the optional policy exercise, prepare a separate administrator browser session in the commerce-demo realm.
+
+1. Introduce the architecture
+Show: Slides 1–7, then move to the application using slide 8.
+Say: “One browser application connects to customer and order services. Keycloak manages sign-in and access policies. Each API enforces the permissions for the requested action.”
+
+2. Sign in as Alice
+Show: Sign in as Alice. Select Load customers, then Load orders.
+Say: “Alice can use one sign-in to view information from both services.”
+Expected: Customer and order information appears.
+
+3. Demonstrate the permission boundary
+Show: Select O100, choose SHIPPED, then Update order.
+Say: “Alice can view an order, but her role does not allow her to change it.”
+Expected: Forbidden response. The order remains unchanged.
+
+4. Switch to Bob
+Show: Sign out and sign in as Bob. Update O100 to SHIPPED, then load orders again.
+Say: “Bob has order-management permission. The same application now allows the change.”
+Expected: Update succeeds and the new status appears.
+
+5. Demonstrate deletion
+Show: Enter O200, select Delete order and confirm. Load orders again.
+Say: “The API also checks permission to delete an order.”
+Expected: O200 disappears. Keep O100 for the remaining demonstration.
+
+6. Explain the session briefly
+Show: Token Inspector, decoded access-token roles and the expiry countdown. Select Refresh tokens now. Keep raw tokens hidden.
+Say: “The application carries the signed-in user’s identity and roles to the services. It can renew the session without asking the user to sign in again while the refresh token remains valid.”
+Expected: The countdown resets.
+
+7. Optional: demonstrate centralized policy control
+Show: Temporarily change the prepared demo policy to deny Bob’s order changes. Retry an update to O100. Restore the policy and retry.
+Say: “We can change the access policy centrally without rebuilding the APIs.”
+Expected: Denial after the policy change, then success after restoration.
+
+8. Close
+Say: “This demonstrates one sign-in across services, different permissions for different users, and access decisions enforced by the APIs.”
+Ask: “Which business actions would you want to manage through central policies?”
+
+After the demonstration
+Restore the original policy and sample orders before another run. This demo illustrates shared sample data and action permissions, not customer-specific data ownership.

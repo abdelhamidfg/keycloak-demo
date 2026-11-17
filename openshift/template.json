@@ -1,0 +1,869 @@
+{
+  "apiVersion": "template.openshift.io/v1",
+  "kind": "Template",
+  "metadata": {
+    "name": "commerce-authorization-demo"
+  },
+  "parameters": [
+    {
+      "name": "NAMESPACE",
+      "required": true,
+      "description": "Existing target project"
+    },
+    {
+      "name": "APPS_DOMAIN",
+      "required": true,
+      "description": "Cluster wildcard application domain"
+    },
+    {
+      "name": "ADMIN_PASSWORD",
+      "required": true,
+      "description": "Keycloak bootstrap administrator password"
+    },
+    {
+      "name": "ALICE_PASSWORD",
+      "required": true,
+      "description": "Alice demo password"
+    },
+    {
+      "name": "BOB_PASSWORD",
+      "required": true,
+      "description": "Bob demo password"
+    },
+    {
+      "name": "CUSTOMER_SECRET",
+      "required": true,
+      "description": "Customer API confidential client secret"
+    },
+    {
+      "name": "ORDER_SECRET",
+      "required": true,
+      "description": "Order API confidential client secret"
+    }
+  ],
+  "objects": [
+    {
+      "apiVersion": "v1",
+      "kind": "Secret",
+      "metadata": {
+        "name": "demo-credentials",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "type": "Opaque",
+      "stringData": {
+        "ADMIN_PASSWORD": "${ADMIN_PASSWORD}",
+        "ALICE_PASSWORD": "${ALICE_PASSWORD}",
+        "BOB_PASSWORD": "${BOB_PASSWORD}",
+        "CUSTOMER_SECRET": "${CUSTOMER_SECRET}",
+        "ORDER_SECRET": "${ORDER_SECRET}"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Secret",
+      "metadata": {
+        "name": "keycloak-realm",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "type": "Opaque",
+      "stringData": {
+        "realm.json": "{\"realm\": \"commerce-demo\", \"enabled\": true, \"displayName\": \"Commerce authorization demo\", \"sslRequired\": \"external\", \"registrationAllowed\": false, \"resetPasswordAllowed\": false, \"rememberMe\": false, \"accessTokenLifespan\": 300, \"roles\": {\"realm\": [{\"name\": \"reader\"}, {\"name\": \"order-manager\"}]}, \"clients\": [{\"clientId\": \"customer-api\", \"enabled\": true, \"protocol\": \"openid-connect\", \"publicClient\": false, \"secret\": \"${CUSTOMER_SECRET}\", \"standardFlowEnabled\": false, \"directAccessGrantsEnabled\": false, \"serviceAccountsEnabled\": true, \"authorizationServicesEnabled\": true, \"fullScopeAllowed\": true, \"authorizationSettings\": {\"allowRemoteResourceManagement\": true, \"policyEnforcementMode\": \"ENFORCING\", \"decisionStrategy\": \"UNANIMOUS\", \"resources\": [{\"name\": \"Customers\", \"type\": \"urn:demo:customers\", \"uris\": [\"/api/customers\", \"/api/customers/*\"], \"ownerManagedAccess\": false, \"scopes\": [{\"name\": \"read\"}]}], \"scopes\": [{\"name\": \"read\"}], \"policies\": [{\"name\": \"Readers\", \"type\": \"role\", \"logic\": \"POSITIVE\", \"decisionStrategy\": \"UNANIMOUS\", \"config\": {\"roles\": \"[{\\\"id\\\": \\\"reader\\\", \\\"required\\\": true}]\"}}, {\"name\": \"Read Customers\", \"type\": \"scope\", \"logic\": \"POSITIVE\", \"decisionStrategy\": \"UNANIMOUS\", \"config\": {\"resources\": \"[\\\"Customers\\\"]\", \"scopes\": \"[\\\"read\\\"]\", \"applyPolicies\": \"[\\\"Readers\\\"]\"}}]}}, {\"clientId\": \"order-api\", \"enabled\": true, \"protocol\": \"openid-connect\", \"publicClient\": false, \"secret\": \"${ORDER_SECRET}\", \"standardFlowEnabled\": false, \"directAccessGrantsEnabled\": false, \"serviceAccountsEnabled\": true, \"authorizationServicesEnabled\": true, \"fullScopeAllowed\": true, \"authorizationSettings\": {\"allowRemoteResourceManagement\": true, \"policyEnforcementMode\": \"ENFORCING\", \"decisionStrategy\": \"UNANIMOUS\", \"resources\": [{\"name\": \"Orders\", \"type\": \"urn:demo:orders\", \"uris\": [\"/api/orders\", \"/api/orders/*\"], \"ownerManagedAccess\": false, \"scopes\": [{\"name\": \"read\"}, {\"name\": \"update\"}, {\"name\": \"delete\"}]}], \"scopes\": [{\"name\": \"read\"}, {\"name\": \"update\"}, {\"name\": \"delete\"}], \"policies\": [{\"name\": \"Readers\", \"type\": \"role\", \"logic\": \"POSITIVE\", \"decisionStrategy\": \"UNANIMOUS\", \"config\": {\"roles\": \"[{\\\"id\\\": \\\"reader\\\", \\\"required\\\": true}]\"}}, {\"name\": \"Read Orders\", \"type\": \"scope\", \"logic\": \"POSITIVE\", \"decisionStrategy\": \"UNANIMOUS\", \"config\": {\"resources\": \"[\\\"Orders\\\"]\", \"scopes\": \"[\\\"read\\\"]\", \"applyPolicies\": \"[\\\"Readers\\\"]\"}}, {\"name\": \"Order managers\", \"type\": \"role\", \"logic\": \"POSITIVE\", \"decisionStrategy\": \"UNANIMOUS\", \"config\": {\"roles\": \"[{\\\"id\\\": \\\"order-manager\\\", \\\"required\\\": true}]\"}}, {\"name\": \"Change orders\", \"type\": \"scope\", \"logic\": \"POSITIVE\", \"decisionStrategy\": \"UNANIMOUS\", \"config\": {\"resources\": \"[\\\"Orders\\\"]\", \"scopes\": \"[\\\"update\\\", \\\"delete\\\"]\", \"applyPolicies\": \"[\\\"Order managers\\\"]\"}}]}}, {\"clientId\": \"commerce-web\", \"enabled\": true, \"protocol\": \"openid-connect\", \"publicClient\": true, \"standardFlowEnabled\": true, \"implicitFlowEnabled\": false, \"directAccessGrantsEnabled\": false, \"fullScopeAllowed\": true, \"redirectUris\": [\"https://frontend-${NAMESPACE}.${APPS_DOMAIN}/\"], \"webOrigins\": [\"https://frontend-${NAMESPACE}.${APPS_DOMAIN}\"], \"attributes\": {\"pkce.code.challenge.method\": \"S256\", \"post.logout.redirect.uris\": \"+\"}, \"defaultClientScopes\": [\"web-origins\", \"acr\", \"profile\", \"roles\", \"email\"], \"protocolMappers\": [{\"name\": \"audience-customer-api\", \"protocol\": \"openid-connect\", \"protocolMapper\": \"oidc-audience-mapper\", \"config\": {\"included.client.audience\": \"customer-api\", \"id.token.claim\": \"false\", \"access.token.claim\": \"true\"}}, {\"name\": \"audience-order-api\", \"protocol\": \"openid-connect\", \"protocolMapper\": \"oidc-audience-mapper\", \"config\": {\"included.client.audience\": \"order-api\", \"id.token.claim\": \"false\", \"access.token.claim\": \"true\"}}]}, {\"clientId\": \"commerce-postman\", \"enabled\": true, \"protocol\": \"openid-connect\", \"publicClient\": true, \"standardFlowEnabled\": true, \"implicitFlowEnabled\": false, \"directAccessGrantsEnabled\": false, \"fullScopeAllowed\": true, \"redirectUris\": [\"https://oauth.pstmn.io/v1/callback\", \"http://127.0.0.1:8765/callback\"], \"webOrigins\": [], \"attributes\": {\"pkce.code.challenge.method\": \"S256\", \"post.logout.redirect.uris\": \"+\"}, \"defaultClientScopes\": [\"web-origins\", \"acr\", \"profile\", \"roles\", \"email\"], \"protocolMappers\": [{\"name\": \"audience-customer-api\", \"protocol\": \"openid-connect\", \"protocolMapper\": \"oidc-audience-mapper\", \"config\": {\"included.client.audience\": \"customer-api\", \"id.token.claim\": \"false\", \"access.token.claim\": \"true\"}}, {\"name\": \"audience-order-api\", \"protocol\": \"openid-connect\", \"protocolMapper\": \"oidc-audience-mapper\", \"config\": {\"included.client.audience\": \"order-api\", \"id.token.claim\": \"false\", \"access.token.claim\": \"true\"}}]}], \"users\": [{\"username\": \"alice\", \"enabled\": true, \"emailVerified\": true, \"firstName\": \"Alice\", \"lastName\": \"Demo\", \"email\": \"alice@example.test\", \"credentials\": [{\"type\": \"password\", \"value\": \"${ALICE_PASSWORD}\", \"temporary\": false}], \"realmRoles\": [\"reader\"]}, {\"username\": \"bob\", \"enabled\": true, \"emailVerified\": true, \"firstName\": \"Bob\", \"lastName\": \"Demo\", \"email\": \"bob@example.test\", \"credentials\": [{\"type\": \"password\", \"value\": \"${BOB_PASSWORD}\", \"temporary\": false}], \"realmRoles\": [\"reader\", \"order-manager\"]}]}"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "frontend-config",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "data": {
+        "config.js": "window.APP_CONFIG = {\"keycloakUrl\": \"https://keycloak-${NAMESPACE}.${APPS_DOMAIN}\", \"realm\": \"commerce-demo\", \"clientId\": \"commerce-web\", \"customerApiUrl\": \"https://customer-api-${NAMESPACE}.${APPS_DOMAIN}\", \"orderApiUrl\": \"https://order-api-${NAMESPACE}.${APPS_DOMAIN}\"};\n"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "keycloak",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "strategy": {
+          "type": "Recreate"
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "keycloak"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "keycloak"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "containers": [
+              {
+                "name": "keycloak",
+                "image": "quay.io/keycloak/keycloak:26.8.2",
+                "imagePullPolicy": "Always",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "http"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "512Mi"
+                  },
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "1536Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "runAsNonRoot": true,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "args": [
+                  "start",
+                  "--import-realm",
+                  "--db=dev-file",
+                  "--http-enabled=true",
+                  "--proxy-headers=xforwarded",
+                  "--health-enabled=true"
+                ],
+                "env": [
+                  {
+                    "name": "KC_HOSTNAME",
+                    "value": "https://keycloak-${NAMESPACE}.${APPS_DOMAIN}"
+                  },
+                  {
+                    "name": "KC_BOOTSTRAP_ADMIN_USERNAME",
+                    "value": "admin"
+                  },
+                  {
+                    "name": "KC_BOOTSTRAP_ADMIN_PASSWORD",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "demo-credentials",
+                        "key": "ADMIN_PASSWORD"
+                      }
+                    }
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "realm",
+                    "mountPath": "/opt/keycloak/data/import",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "data",
+                    "mountPath": "/opt/keycloak/data"
+                  }
+                ],
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/health/ready",
+                    "port": 9000
+                  },
+                  "periodSeconds": 10
+                },
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/health/ready",
+                    "port": 9000
+                  },
+                  "periodSeconds": 10,
+                  "failureThreshold": 60
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/health/live",
+                    "port": 9000
+                  },
+                  "periodSeconds": 20
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "realm",
+                "secret": {
+                  "secretName": "keycloak-realm"
+                }
+              },
+              {
+                "name": "data",
+                "emptyDir": {}
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "keycloak",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "selector": {
+          "app": "keycloak"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "route.openshift.io/v1",
+      "kind": "Route",
+      "metadata": {
+        "name": "keycloak",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "host": "keycloak-${NAMESPACE}.${APPS_DOMAIN}",
+        "to": {
+          "kind": "Service",
+          "name": "keycloak"
+        },
+        "port": {
+          "targetPort": "http"
+        },
+        "tls": {
+          "termination": "edge",
+          "insecureEdgeTerminationPolicy": "Redirect"
+        }
+      }
+    },
+    {
+      "apiVersion": "image.openshift.io/v1",
+      "kind": "ImageStream",
+      "metadata": {
+        "name": "customer-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      }
+    },
+    {
+      "apiVersion": "build.openshift.io/v1",
+      "kind": "BuildConfig",
+      "metadata": {
+        "name": "customer-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "source": {
+          "type": "Binary",
+          "binary": {}
+        },
+        "strategy": {
+          "type": "Docker",
+          "dockerStrategy": {
+            "dockerfilePath": "customer-api/Dockerfile"
+          }
+        },
+        "output": {
+          "to": {
+            "kind": "ImageStreamTag",
+            "name": "customer-api:latest"
+          }
+        },
+        "runPolicy": "Serial"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "customer-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "strategy": {
+          "type": "Recreate"
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "customer-api"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "customer-api"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "containers": [
+              {
+                "name": "customer-api",
+                "image": "image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/customer-api:latest",
+                "imagePullPolicy": "Always",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "http"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "512Mi"
+                  },
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "1536Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "runAsNonRoot": true,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "env": [
+                  {
+                    "name": "KEYCLOAK_URL",
+                    "value": "https://keycloak-${NAMESPACE}.${APPS_DOMAIN}"
+                  },
+                  {
+                    "name": "FRONTEND_ORIGIN",
+                    "value": "https://frontend-${NAMESPACE}.${APPS_DOMAIN}"
+                  },
+                  {
+                    "name": "HTTP_PORT",
+                    "value": "8080"
+                  },
+                  {
+                    "name": "CLIENT_SECRET",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "demo-credentials",
+                        "key": "CUSTOMER_SECRET"
+                      }
+                    }
+                  }
+                ],
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/q/health/ready",
+                    "port": 8080
+                  },
+                  "periodSeconds": 10
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/q/health/live",
+                    "port": 8080
+                  },
+                  "periodSeconds": 20
+                },
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/q/health/started",
+                    "port": 8080
+                  },
+                  "periodSeconds": 10,
+                  "failureThreshold": 60
+                }
+              }
+            ],
+            "volumes": []
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "customer-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "selector": {
+          "app": "customer-api"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "route.openshift.io/v1",
+      "kind": "Route",
+      "metadata": {
+        "name": "customer-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "host": "customer-api-${NAMESPACE}.${APPS_DOMAIN}",
+        "to": {
+          "kind": "Service",
+          "name": "customer-api"
+        },
+        "port": {
+          "targetPort": "http"
+        },
+        "tls": {
+          "termination": "edge",
+          "insecureEdgeTerminationPolicy": "Redirect"
+        }
+      }
+    },
+    {
+      "apiVersion": "image.openshift.io/v1",
+      "kind": "ImageStream",
+      "metadata": {
+        "name": "order-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      }
+    },
+    {
+      "apiVersion": "build.openshift.io/v1",
+      "kind": "BuildConfig",
+      "metadata": {
+        "name": "order-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "source": {
+          "type": "Binary",
+          "binary": {}
+        },
+        "strategy": {
+          "type": "Docker",
+          "dockerStrategy": {
+            "dockerfilePath": "order-api/Dockerfile"
+          }
+        },
+        "output": {
+          "to": {
+            "kind": "ImageStreamTag",
+            "name": "order-api:latest"
+          }
+        },
+        "runPolicy": "Serial"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "order-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "strategy": {
+          "type": "Recreate"
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "order-api"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "order-api"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "containers": [
+              {
+                "name": "order-api",
+                "image": "image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/order-api:latest",
+                "imagePullPolicy": "Always",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "http"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "512Mi"
+                  },
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "1536Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "runAsNonRoot": true,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "env": [
+                  {
+                    "name": "KEYCLOAK_URL",
+                    "value": "https://keycloak-${NAMESPACE}.${APPS_DOMAIN}"
+                  },
+                  {
+                    "name": "FRONTEND_ORIGIN",
+                    "value": "https://frontend-${NAMESPACE}.${APPS_DOMAIN}"
+                  },
+                  {
+                    "name": "HTTP_PORT",
+                    "value": "8080"
+                  },
+                  {
+                    "name": "CLIENT_SECRET",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "demo-credentials",
+                        "key": "ORDER_SECRET"
+                      }
+                    }
+                  }
+                ],
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/q/health/ready",
+                    "port": 8080
+                  },
+                  "periodSeconds": 10
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/q/health/live",
+                    "port": 8080
+                  },
+                  "periodSeconds": 20
+                },
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/q/health/started",
+                    "port": 8080
+                  },
+                  "periodSeconds": 10,
+                  "failureThreshold": 60
+                }
+              }
+            ],
+            "volumes": []
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "order-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "selector": {
+          "app": "order-api"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "route.openshift.io/v1",
+      "kind": "Route",
+      "metadata": {
+        "name": "order-api",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "host": "order-api-${NAMESPACE}.${APPS_DOMAIN}",
+        "to": {
+          "kind": "Service",
+          "name": "order-api"
+        },
+        "port": {
+          "targetPort": "http"
+        },
+        "tls": {
+          "termination": "edge",
+          "insecureEdgeTerminationPolicy": "Redirect"
+        }
+      }
+    },
+    {
+      "apiVersion": "image.openshift.io/v1",
+      "kind": "ImageStream",
+      "metadata": {
+        "name": "frontend",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      }
+    },
+    {
+      "apiVersion": "build.openshift.io/v1",
+      "kind": "BuildConfig",
+      "metadata": {
+        "name": "frontend",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "source": {
+          "type": "Binary",
+          "binary": {}
+        },
+        "strategy": {
+          "type": "Docker",
+          "dockerStrategy": {
+            "dockerfilePath": "frontend/Dockerfile"
+          }
+        },
+        "output": {
+          "to": {
+            "kind": "ImageStreamTag",
+            "name": "frontend:latest"
+          }
+        },
+        "runPolicy": "Serial"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "frontend",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "replicas": 1,
+        "strategy": {
+          "type": "Recreate"
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "frontend"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "frontend"
+            }
+          },
+          "spec": {
+            "automountServiceAccountToken": false,
+            "containers": [
+              {
+                "name": "frontend",
+                "image": "image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/frontend:latest",
+                "imagePullPolicy": "Always",
+                "ports": [
+                  {
+                    "containerPort": 8080,
+                    "name": "http"
+                  }
+                ],
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "cpu": "2",
+                    "memory": "256Mi"
+                  }
+                },
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  },
+                  "runAsNonRoot": true,
+                  "seccompProfile": {
+                    "type": "RuntimeDefault"
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "name": "config",
+                    "mountPath": "/usr/share/nginx/html/config.js",
+                    "subPath": "config.js",
+                    "readOnly": true
+                  }
+                ],
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/",
+                    "port": 8080
+                  }
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/",
+                    "port": 8080
+                  }
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "config",
+                "configMap": {
+                  "name": "frontend-config"
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "frontend",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "selector": {
+          "app": "frontend"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "route.openshift.io/v1",
+      "kind": "Route",
+      "metadata": {
+        "name": "frontend",
+        "namespace": "${NAMESPACE}",
+        "labels": {
+          "app.kubernetes.io/part-of": "commerce-demo"
+        }
+      },
+      "spec": {
+        "host": "frontend-${NAMESPACE}.${APPS_DOMAIN}",
+        "to": {
+          "kind": "Service",
+          "name": "frontend"
+        },
+        "port": {
+          "targetPort": "http"
+        },
+        "tls": {
+          "termination": "edge",
+          "insecureEdgeTerminationPolicy": "Redirect"
+        }
+      }
+    }
+  ]
+}

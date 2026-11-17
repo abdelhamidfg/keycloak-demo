@@ -1,0 +1,12 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"><modelVersion>4.0.0</modelVersion>
+  <parent><groupId>demo</groupId><artifactId>keycloak-commerce-demo</artifactId><version>1.0.0-SNAPSHOT</version></parent>
+  <artifactId>customer-api</artifactId>
+  <dependencies>
+    <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-rest-jackson</artifactId></dependency>
+    <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-oidc</artifactId></dependency>
+    <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-keycloak-authorization</artifactId></dependency>
+    <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-smallrye-health</artifactId></dependency>
+    <dependency><groupId>io.quarkus</groupId><artifactId>quarkus-hibernate-validator</artifactId></dependency>
+  </dependencies>
+  <build><plugins><plugin><groupId>io.quarkus</groupId><artifactId>quarkus-maven-plugin</artifactId></plugin></plugins></build>
+</project>

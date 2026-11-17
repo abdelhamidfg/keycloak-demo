@@ -1,0 +1,51 @@
+name: Verify demo
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build APIs and browser app
+        run: |
+          mvn -B verify
+          cd frontend
+          npm ci
+          npm run build
+      - name: Start Keycloak with imported realm
+        run: |
+          docker run -d --name demo-keycloak -p 8080:8080 \
+            -e KC_BOOTSTRAP_ADMIN_USERNAME=admin \
+            -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin-demo-password \
+            -e KC_HOSTNAME=http://localhost:8080 \
+            -v "$PWD/keycloak/realm.json:/opt/keycloak/data/import/realm.json:ro" \
+            quay.io/keycloak/keycloak:26.8.2 start-dev --import-realm
+          python3 scripts/wait-http.py http://localhost:8080/realms/commerce-demo/.well-known/openid-configuration
+      - name: Test real PKCE and permissions
+        run: |
+          mkdir -p .runtime
+          java -jar customer-api/target/quarkus-app/quarkus-run.jar >.runtime/customer.log 2>&1 &
+          CUSTOMER_PID=$!
+          java -jar order-api/target/quarkus-app/quarkus-run.jar >.runtime/order.log 2>&1 &
+          ORDER_PID=$!
+          trap 'kill "$CUSTOMER_PID" "$ORDER_PID" 2>/dev/null || true' EXIT
+          python3 scripts/wait-http.py http://localhost:8081/q/health/ready
+          python3 scripts/wait-http.py http://localhost:8082/q/health/ready
+          python3 tests/smoke.py
+      - name: Show diagnostic logs on failure
+        if: failure()
+        run: |
+          docker logs demo-keycloak || true
+          cat .runtime/customer.log .runtime/order.log || true
